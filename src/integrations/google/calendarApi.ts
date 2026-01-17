@@ -96,6 +96,35 @@ export async function listEvents(
 }
 
 /**
+ * Get a single event by ID
+ */
+export async function getEvent(
+  calendarId: string,
+  eventId: string
+): Promise<CalendarEvent> {
+  const token = await getAccessToken();
+  if (!token) {
+    throw new Error('Not authenticated. Please connect to Google first.');
+  }
+
+  const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(eventId)}`;
+
+  const response = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Failed to fetch event: ${response.status} ${error}`);
+  }
+
+  const event: CalendarEvent = await response.json();
+  return event;
+}
+
+/**
  * Update an event's description
  */
 export async function patchEventDescription(

@@ -23,13 +23,23 @@ export interface Dog {
 export interface Visit {
   id: string;
   dogId: string;
+  calendarId: string;
+  calendarEventId: string;
   dateISO: string; // ISO date string
   notes?: string;
-  priceCents?: number;
-  durationMin?: number;
+  priceCents?: number | null;
+  durationMin?: number | null;
   status: 'planned' | 'done' | 'no_show';
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface VisitPhoto {
+  id: string;
+  visitId: string;
+  name: string;
+  relativePath: string; // e.g., "visits/<visitId>/after_1234567890_1.jpg"
+  createdAt: Date;
 }
 
 export interface EventLink {

@@ -1,5 +1,5 @@
 import Dexie, { Table } from 'dexie';
-import { Client, Dog, Visit, EventLink, KV } from './schema';
+import { Client, Dog, Visit, EventLink, KV, VisitPhoto } from './schema';
 
 export class GroomingDB extends Dexie {
   clients!: Table<Client, string>;
@@ -7,6 +7,7 @@ export class GroomingDB extends Dexie {
   visits!: Table<Visit, string>;
   eventLinks!: Table<EventLink, string>;
   kv!: Table<KV, string>;
+  visitPhotos!: Table<VisitPhoto, string>;
 
   constructor() {
     super('GroomingCRM');
@@ -17,6 +18,11 @@ export class GroomingDB extends Dexie {
       visits: 'id, dogId, dateISO, createdAt',
       eventLinks: 'id, [calendarId+calendarEventId], dogId, updatedAt',
       kv: 'key',
+    });
+
+    this.version(2).stores({
+      visits: 'id, dogId, [calendarId+calendarEventId], dateISO, createdAt',
+      visitPhotos: 'id, visitId, createdAt',
     });
   }
 }

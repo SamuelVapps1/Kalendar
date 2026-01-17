@@ -115,7 +115,7 @@ To connect the app to your Google Calendar, you need to create a Google OAuth Cl
 - [x] Calendar selection in Settings
 - [x] Event display with time, location, description
 
-### ✅ Milestone 3 (Current)
+### ✅ Milestone 3
 - [x] Link calendar events to dog profiles
 - [x] Write durable token (`#GROOMDOG:<dogId>`) into event descriptions
 - [x] Auto-detect existing links from event descriptions
@@ -124,11 +124,14 @@ To connect the app to your Google Calendar, you need to create a Google OAuth Cl
 - [x] Display linked dogs on event cards
 - [x] Unlink dogs from events (removes token from description)
 
-### Milestone 4: Visits & Photo Management
-- Create and manage visits
-- Save photos to selected storage folder
-- Associate photos with visits
-- Photo gallery view
+### ✅ Milestone 4: Visits & Photo Management (Current)
+- [x] Create and manage visits tied to calendar events
+- [x] Visit data model with status, duration, price, and notes
+- [x] Save photos to selected storage folder using File System Access API
+- [x] Associate photos with visits
+- [x] Photo gallery view with thumbnails that persist after reload
+- [x] Visit editor with autosave
+- [x] Open visit from Today page events
 
 ### Milestone 5: Backup/Export/Import & Hardening
 - Export all data to JSON
@@ -149,6 +152,66 @@ The app allows you to link Google Calendar events to dog profiles. When you assi
 **Token Format**: `#GROOMDOG:<dogId>` - This token is appended to the event description (or replaces an existing token if present). The rest of the description is preserved.
 
 **Unlinking**: When you unlink a dog from an event, both the local mapping and the token in the description are removed.
+
+## Visits & Photo Storage
+
+### Creating Visits
+
+Visits are automatically created when you open a visit page from a calendar event:
+
+1. From the **Today** page, find an event that has a dog assigned
+2. Click **"Open Visit"** button
+3. A visit record is created (or loaded if it already exists) for that event+dog combination
+4. Edit visit details: status, duration, price, notes
+5. Upload photos associated with the visit
+
+### Photo Storage Structure
+
+Photos are stored in the folder structure you selected in Settings:
+
+```
+<Your Selected Folder>/
+  GroomingDB/
+    visits/
+      <visitId>/
+        after_<timestamp>_<n>.jpg
+        after_<timestamp>_<n>.jpg
+        ...
+```
+
+- Photos are organized by visit ID
+- Filenames follow the pattern: `after_<timestamp>_<index>.<extension>`
+- Each photo is stored with its original file extension
+- Photo metadata is stored in IndexedDB for fast lookup
+
+### Setting Up Photo Storage on ChromeOS
+
+1. Go to **Settings** in the app
+2. Click **"Select Storage Folder"**
+3. Navigate to your desired folder (e.g., `Downloads/GroomingPhotos` or `My Files/Photos`)
+4. Select the folder and grant permission
+5. The folder handle is stored securely in IndexedDB
+
+**Important Notes**:
+- You must grant read/write permission when prompted
+- If permission is denied, the app will show a banner with a link to Settings
+- You can re-request permission at any time from the visit page
+- Photos can only be accessed when the folder permission is granted
+
+**ChromeOS Specific**:
+- File System Access API works best in installed PWA mode
+- Ensure the app has persistent storage permissions
+- Photos are stored in your ChromeOS Downloads or selected folder location
+
+### Visit Features
+
+- **Autosave**: Visit details automatically save 1 second after you stop typing
+- **Status**: Track visit status (Planned, Done, No Show)
+- **Duration**: Record visit duration in minutes
+- **Price**: Record visit price in EUR (stored as cents)
+- **Notes**: Add detailed notes about the visit
+- **Photos**: Upload multiple photos per visit
+- **Thumbnails**: View photos with persistent thumbnails that work after page reload
 
 ## Technology Stack
 

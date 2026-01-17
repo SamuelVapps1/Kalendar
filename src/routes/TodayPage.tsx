@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { isConnected } from '../integrations/google/auth';
 import { listEvents, CalendarEvent, patchEventDescription } from '../integrations/google/calendarApi';
 import { getKV } from '../db/kv';
@@ -19,6 +19,7 @@ interface EventWithLink extends CalendarEvent {
 }
 
 export default function TodayPage() {
+  const navigate = useNavigate();
   const [viewMode, setViewMode] = useState<ViewMode>('today');
   const [events, setEvents] = useState<EventWithLink[]>([]);
   const [loading, setLoading] = useState(false);
@@ -436,17 +437,30 @@ export default function TodayPage() {
                     Open in Google Calendar →
                   </a>
                   {event.linkedDog ? (
-                    <button
-                      onClick={() => handleUnlinkDog(event.id)}
-                      disabled={isLinking}
-                      style={{
-                        padding: '0.25rem 0.75rem',
-                        fontSize: '0.85rem',
-                        backgroundColor: '#f44336',
-                      }}
-                    >
-                      {isLinking ? 'Unlinking...' : 'Unlink'}
-                    </button>
+                    <>
+                      <button
+                        onClick={() => navigate(`/visit/event/${selectedCalendarId}/${event.id}`)}
+                        style={{
+                          padding: '0.25rem 0.75rem',
+                          fontSize: '0.85rem',
+                          backgroundColor: '#4caf50',
+                          color: 'white',
+                        }}
+                      >
+                        Open Visit
+                      </button>
+                      <button
+                        onClick={() => handleUnlinkDog(event.id)}
+                        disabled={isLinking}
+                        style={{
+                          padding: '0.25rem 0.75rem',
+                          fontSize: '0.85rem',
+                          backgroundColor: '#f44336',
+                        }}
+                      >
+                        {isLinking ? 'Unlinking...' : 'Unlink'}
+                      </button>
+                    </>
                   ) : (
                     <button
                       onClick={() => handleAssignDog(event.id)}
