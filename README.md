@@ -40,16 +40,38 @@ npm run build
 
 The built files will be in the `dist` directory.
 
-## Installing as a PWA
+## Installing as a PWA on Chromebook
 
-To install this app as a Progressive Web App on Chrome/Chromium:
+This app is a Progressive Web App (PWA) that can be installed on your Chromebook:
 
-1. Open the app in Chrome/Chromium
-2. Look for the install icon in the address bar (or go to the menu → "Install Grooming CRM")
-3. Click "Install"
-4. The app will open in its own window and can be launched from your app launcher
+### Installation Steps
 
-**Note**: For the File System Access API to work properly, the app should be installed as a PWA or run from `localhost`.
+1. **Build the app** (if not already built):
+   ```bash
+   npm run build
+   ```
+
+2. **Serve the built app** (choose one method):
+   - **Development**: Run `npm run dev` and navigate to `http://localhost:5173`
+   - **Production**: Deploy the `dist` folder to a web server with HTTPS
+
+3. **Install in Chrome**:
+   - Open the app in Chrome/Chromium browser
+   - Look for the install icon (⊕) in the address bar
+   - Or go to Chrome menu → "Install Grooming CRM..."
+   - Click "Install"
+   - The app will open in its own window
+
+4. **Launch the installed app**:
+   - Find "Grooming CRM" in your Chromebook app launcher
+   - Click to launch (opens in standalone window, no browser UI)
+
+### Important Notes
+
+- **HTTPS Required**: For best PWA behavior, serve the app over HTTPS (required for service worker in production). `localhost` works for development.
+- **Google OAuth Origins**: After deploying, update your Google OAuth Client ID's "Authorized JavaScript origins" in Google Cloud Console to include your production domain (e.g., `https://yourdomain.com`).
+- **Offline Support**: The app shell is cached for offline use. Calendar sync requires an internet connection.
+- **File System Access**: For the File System Access API to work properly, the app should be installed as a PWA or run from `localhost`.
 
 ## Google Calendar Setup
 

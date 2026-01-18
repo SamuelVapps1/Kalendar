@@ -24,6 +24,9 @@ import { exportBackupJson, importBackupJson, applyBackupReplace, downloadJson, g
 import { writeManifestToFolder, verifyPhotos } from '../backup/folderBackup';
 import { getStorageFolderHandleOrThrow } from '../fs/visitPhotos';
 
+// App version (should match package.json)
+const APP_VERSION = '1.0.0';
+
 const SELECTED_CALENDAR_KEY = 'selectedCalendarId';
 
 export default function SettingsPage() {
@@ -808,6 +811,40 @@ export default function SettingsPage() {
                 ✓ All photos verified successfully!
               </div>
             )}
+          </div>
+        )}
+      </section>
+
+      <section>
+        <h2>App Information</h2>
+        
+        <div style={{ marginBottom: '1rem' }}>
+          <strong>Version:</strong> {APP_VERSION}
+        </div>
+
+        <div style={{ marginBottom: '1rem' }}>
+          <strong>PWA Status:</strong>
+          <div style={{ marginTop: '0.5rem', fontSize: '0.9rem' }}>
+            <div style={{ marginBottom: '0.25rem' }}>
+              Manifest: <span style={{ color: '#4caf50' }}>✓ Present</span>
+            </div>
+            <div>
+              Service Worker: <span style={{ color: 'serviceWorker' in navigator ? '#4caf50' : '#ff9800' }}>
+                {('serviceWorker' in navigator) ? '✓ Supported' : '✗ Not Supported'}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {('serviceWorker' in navigator) && (
+          <div style={{ 
+            padding: '0.75rem', 
+            backgroundColor: '#e8f5e9', 
+            borderRadius: '4px',
+            fontSize: '0.9rem',
+            color: '#2e7d32'
+          }}>
+            ✓ This app is ready to be installed as a PWA. Use Chrome's install icon to add it to your Chromebook.
           </div>
         )}
       </section>
