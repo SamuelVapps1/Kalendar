@@ -19,6 +19,9 @@ import {
 import { listCalendars } from '../integrations/google/calendarApi';
 import { Calendar } from '../integrations/google/calendarApi';
 import { getKV, setKV } from '../db/kv';
+import { exportBackupJson, importBackupJson, applyBackupReplace, downloadJson, generateBackupFilename } from '../backup/exportImport';
+import { writeManifestToFolder, verifyPhotos } from '../backup/folderBackup';
+import { getStorageFolderHandleOrThrow } from '../fs/visitPhotos';
 
 const SELECTED_CALENDAR_KEY = 'selectedCalendarId';
 
@@ -38,6 +41,20 @@ export default function SettingsPage() {
   const [googleError, setGoogleError] = useState<string | null>(null);
   const clientIdInputRef = useRef<HTMLInputElement>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Backup state
+  const [backupLoading, setBackupLoading] = useState(false);
+  const [backupError, setBackupError] = useState<string | null>(null);
+  const [backupSuccess, setBackupSuccess] = useState<string | null>(null);
+  const [importConfirmOpen, setImportConfirmOpen] = useState(false);
+  const [pendingImportFile, setPendingImportFile] = useState<File | null>(null);
+  const [verifyingPhotos, setVerifyingPhotos] = useState(false);
+  const [verifyResult, setVerifyResult] = useState<{
+    total: number;
+    missing: Array<{ visitId: string; relativePath: string; photoId: string }>;
+  } | null>(null);
+  const [showVerifyResults, setShowVerifyResults] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     // Check API support
@@ -217,6 +234,135 @@ export default function SettingsPage() {
         return '#f44336';
       default:
         return '#ff9800';
+    }
+  };
+
+  // Backup handlers
+  const handleExportData = async () => {
+    setBackupLoading(true);
+    setBackupError(null);
+    setBackupSuccess(null);
+    
+    try {
+      const manifest = await exportBackupJson();
+      const filename = generateBackupFilename();
+      downloadJson(filename, manifest);
+      setBackupSuccess('Data exported successfully!');
+      
+      // Clear success message after 5 seconds
+      setTimeout(() => setBackupSuccess(null), 5000);
+    } catch (error: any) {
+      setBackupError(error.message || 'Failed to export data');
+    } finally {
+      setBackupLoading(false);
+    }
+  };
+
+  const handleExportManifest = async () => {
+    if (!folderHandle || permissionStatus !== 'granted') {
+      setBackupError('Storage folder not selected or permission denied. Please select a folder first.');
+      return;
+    }
+
+    setBackupLoading(true);
+    setBackupError(null);
+    setBackupSuccess(null);
+
+    try {
+      const storageHandle = await getStorageFolderHandleOrThrow();
+      const manifest = await exportBackupJson();
+      const filename = await writeManifestToFolder(storageHandle, manifest);
+      setBackupSuccess(`Manifest saved: ${filename}`);
+      
+      // Clear success message after 5 seconds
+      setTimeout(() => setBackupSuccess(null), 5000);
+    } catch (error: any) {
+      setBackupError(error.message || 'Failed to export manifest');
+    } finally {
+      setBackupLoading(false);
+    }
+  };
+
+  const handleImportFile = async () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      // Validate file first
+      await importBackupJson(file);
+      // If valid, show confirmation
+      setPendingImportFile(file);
+      setImportConfirmOpen(true);
+    } catch (error: any) {
+      setBackupError(error.message || 'Invalid backup file');
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleConfirmImport = async () => {
+    if (!pendingImportFile) return;
+
+    setBackupLoading(true);
+    setBackupError(null);
+    setBackupSuccess(null);
+    setImportConfirmOpen(false);
+
+    try {
+      const manifest = await importBackupJson(pendingImportFile);
+      await applyBackupReplace(manifest);
+      
+      // Reload settings to reflect imported values
+      await loadGoogleSettings();
+      
+      setBackupSuccess('Data imported successfully! Please refresh the page to see changes.');
+      
+      // Clear success message after 10 seconds
+      setTimeout(() => setBackupSuccess(null), 10000);
+    } catch (error: any) {
+      setBackupError(error.message || 'Failed to import data');
+    } finally {
+      setBackupLoading(false);
+      setPendingImportFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleCancelImport = () => {
+    setImportConfirmOpen(false);
+    setPendingImportFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleVerifyPhotos = async () => {
+    if (!folderHandle || permissionStatus !== 'granted') {
+      setBackupError('Storage folder not selected or permission denied. Please select a folder first.');
+      return;
+    }
+
+    setVerifyingPhotos(true);
+    setBackupError(null);
+    setVerifyResult(null);
+    setShowVerifyResults(false);
+
+    try {
+      const storageHandle = await getStorageFolderHandleOrThrow();
+      const result = await verifyPhotos(storageHandle);
+      setVerifyResult(result);
+      setShowVerifyResults(true);
+    } catch (error: any) {
+      setBackupError(error.message || 'Failed to verify photos');
+    } finally {
+      setVerifyingPhotos(false);
     }
   };
 
@@ -409,6 +555,192 @@ export default function SettingsPage() {
           </div>
         )}
       </section>
+
+      <section>
+        <h2>Backup & Restore</h2>
+        
+        <div style={{ marginBottom: '1rem', padding: '1rem', backgroundColor: '#e3f2fd', borderRadius: '4px', fontSize: '0.9rem' }}>
+          <strong>Backup is for moving to a new device.</strong> Export your data before resetting your Chromebook or switching devices.
+        </div>
+
+        {backupError && (
+          <div style={{ 
+            marginBottom: '1rem', 
+            padding: '0.75rem', 
+            backgroundColor: '#ffebee', 
+            color: '#c62828',
+            borderRadius: '4px',
+            fontSize: '0.9rem'
+          }}>
+            {backupError}
+          </div>
+        )}
+
+        {backupSuccess && (
+          <div style={{ 
+            marginBottom: '1rem', 
+            padding: '0.75rem', 
+            backgroundColor: '#e8f5e9', 
+            color: '#2e7d32',
+            borderRadius: '4px',
+            fontSize: '0.9rem'
+          }}>
+            {backupSuccess}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1rem' }}>
+          <div>
+            <button 
+              onClick={handleExportData}
+              disabled={backupLoading}
+              style={{ padding: '0.5rem 1rem', marginRight: '0.5rem' }}
+            >
+              {backupLoading ? 'Exporting...' : 'Export Data (JSON)'}
+            </button>
+            <div style={{ fontSize: '0.85rem', color: '#666', marginTop: '0.25rem' }}>
+              Downloads a JSON file with all your data (clients, dogs, visits, photos metadata, settings)
+            </div>
+          </div>
+
+          <div>
+            <button 
+              onClick={handleExportManifest}
+              disabled={backupLoading || !folderHandle || permissionStatus !== 'granted'}
+              style={{ padding: '0.5rem 1rem', marginRight: '0.5rem' }}
+            >
+              {backupLoading ? 'Exporting...' : 'Export + Photos Manifest'}
+            </button>
+            <div style={{ fontSize: '0.85rem', color: '#666', marginTop: '0.25rem' }}>
+              Writes a manifest JSON to your storage folder (includes photo file list)
+            </div>
+          </div>
+
+          <div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json"
+              onChange={handleFileSelected}
+              style={{ display: 'none' }}
+            />
+            <button 
+              onClick={handleImportFile}
+              disabled={backupLoading}
+              style={{ padding: '0.5rem 1rem', marginRight: '0.5rem' }}
+            >
+              {backupLoading ? 'Importing...' : 'Import Data (JSON)'}
+            </button>
+            <div style={{ fontSize: '0.85rem', color: '#666', marginTop: '0.25rem' }}>
+              Import a backup JSON file. This will replace all existing data.
+            </div>
+          </div>
+
+          <div>
+            <button 
+              onClick={handleVerifyPhotos}
+              disabled={verifyingPhotos || !folderHandle || permissionStatus !== 'granted'}
+              style={{ padding: '0.5rem 1rem', marginRight: '0.5rem' }}
+            >
+              {verifyingPhotos ? 'Verifying...' : 'Verify Photos'}
+            </button>
+            <div style={{ fontSize: '0.85rem', color: '#666', marginTop: '0.25rem' }}>
+              Check if all photo files referenced in the database actually exist in the storage folder
+            </div>
+          </div>
+        </div>
+
+        {showVerifyResults && verifyResult && (
+          <div style={{
+            padding: '1rem',
+            backgroundColor: '#f5f5f5',
+            borderRadius: '4px',
+            marginTop: '1rem',
+          }}>
+            <div style={{ marginBottom: '0.5rem', fontWeight: 'bold' }}>
+              Photo Verification Results
+            </div>
+            <div style={{ marginBottom: '0.5rem' }}>
+              Total photos: <strong>{verifyResult.total}</strong>
+            </div>
+            <div style={{ marginBottom: '0.5rem' }}>
+              Missing files: <strong style={{ color: verifyResult.missing.length > 0 ? '#f44336' : '#4caf50' }}>
+                {verifyResult.missing.length}
+              </strong>
+            </div>
+            {verifyResult.missing.length > 0 && (
+              <details style={{ marginTop: '0.5rem' }}>
+                <summary style={{ cursor: 'pointer', fontWeight: 'bold', color: '#f44336' }}>
+                  Show missing files ({verifyResult.missing.length})
+                </summary>
+                <ul style={{ marginTop: '0.5rem', paddingLeft: '1.5rem', fontSize: '0.9rem' }}>
+                  {verifyResult.missing.map((item, idx) => (
+                    <li key={idx} style={{ marginBottom: '0.25rem' }}>
+                      <strong>Visit {item.visitId}:</strong> {item.relativePath}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+            {verifyResult.missing.length === 0 && (
+              <div style={{ color: '#4caf50', fontWeight: 'bold', marginTop: '0.5rem' }}>
+                ✓ All photos verified successfully!
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+
+      {importConfirmOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+        }}>
+          <div style={{
+            backgroundColor: '#fff',
+            padding: '2rem',
+            borderRadius: '8px',
+            maxWidth: '500px',
+            width: '90%',
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.3)',
+          }}>
+            <h3 style={{ marginTop: 0 }}>Confirm Import</h3>
+            <p style={{ marginBottom: '1rem', color: '#c62828', fontWeight: 'bold' }}>
+              ⚠️ WARNING: This will replace all existing data with the imported backup.
+            </p>
+            <p style={{ marginBottom: '1.5rem' }}>
+              All current clients, dogs, visits, photos metadata, and settings will be deleted and replaced with the backup data.
+            </p>
+            <p style={{ marginBottom: '1.5rem', fontSize: '0.9rem', color: '#666' }}>
+              Are you sure you want to continue?
+            </p>
+            <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+              <button
+                onClick={handleCancelImport}
+                disabled={backupLoading}
+                style={{ padding: '0.5rem 1rem', backgroundColor: '#e0e0e0' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmImport}
+                disabled={backupLoading}
+                style={{ padding: '0.5rem 1rem', backgroundColor: '#f44336', color: 'white' }}
+              >
+                {backupLoading ? 'Importing...' : 'Yes, Replace All Data'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

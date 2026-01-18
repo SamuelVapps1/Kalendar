@@ -124,7 +124,7 @@ To connect the app to your Google Calendar, you need to create a Google OAuth Cl
 - [x] Display linked dogs on event cards
 - [x] Unlink dogs from events (removes token from description)
 
-### ✅ Milestone 4: Visits & Photo Management (Current)
+### ✅ Milestone 4: Visits & Photo Management
 - [x] Create and manage visits tied to calendar events
 - [x] Visit data model with status, duration, price, and notes
 - [x] Save photos to selected storage folder using File System Access API
@@ -133,12 +133,14 @@ To connect the app to your Google Calendar, you need to create a Google OAuth Cl
 - [x] Visit editor with autosave
 - [x] Open visit from Today page events
 
-### Milestone 5: Backup/Export/Import & Hardening
-- Export all data to JSON
-- Import data from backup
-- Export photos as zip
-- Data validation and error handling
-- Offline-first optimizations
+### ✅ Milestone 5: Backup/Export/Import & Hardening (Current)
+- [x] Export all data to JSON with schema versioning
+- [x] Import data from backup with validation and confirmation
+- [x] Export manifest to storage folder (includes photo file list)
+- [x] Verify photo integrity (check if files exist in filesystem)
+- [x] Safe KV keys filtering (excludes sensitive data)
+- [x] Database wipe and restore with transactions
+- [x] Error handling and user feedback
 
 ## Linking Events to Dogs
 
@@ -212,6 +214,99 @@ Photos are stored in the folder structure you selected in Settings:
 - **Notes**: Add detailed notes about the visit
 - **Photos**: Upload multiple photos per visit
 - **Thumbnails**: View photos with persistent thumbnails that work after page reload
+
+## Backup & Restore
+
+The app includes a robust backup system to ensure your data is safe when moving to a new device or after a reset.
+
+### Backup Options
+
+#### 1. Export Data (JSON)
+- **Location**: Settings → Backup & Restore
+- **Function**: Exports all structured data to a JSON file
+- **Includes**:
+  - Clients
+  - Dogs
+  - Visits
+  - Event Links
+  - Visit Photos metadata
+  - Safe settings (calendar selection, Google Client ID)
+- **Excludes**:
+  - Storage folder handle (cannot be serialized)
+  - Google access tokens (session-specific)
+- **Filename**: `groom-crm_backup_YYYY-MM-DD_HH-mm.json`
+- **Use case**: Moving to a new Chromebook or creating a backup
+
+#### 2. Export + Photos Manifest
+- **Location**: Settings → Backup & Restore
+- **Function**: Writes a manifest JSON to your selected storage folder
+- **Location**: `GroomingDB/backup/manifest_<timestamp>.json`
+- **Includes**: All exported data plus photo file list with relative paths
+- **Use case**: Full backup with photo index (photos remain in original location)
+
+#### 3. Verify Photos
+- **Location**: Settings → Backup & Restore
+- **Function**: Checks if all photo files referenced in the database exist in the filesystem
+- **Shows**:
+  - Total photos count
+  - Missing files count and list
+- **Use case**: Verify data integrity after restore or folder changes
+
+### Restore Steps
+
+To restore your data on a new device or after reset:
+
+1. **Select Storage Folder**:
+   - Go to Settings → Storage Folder
+   - Click "Select Storage Folder"
+   - Choose the same folder you used before (if restoring from manifest)
+
+2. **Import Data**:
+   - Go to Settings → Backup & Restore
+   - Click "Import Data (JSON)"
+   - Select your backup JSON file
+   - Confirm the import (⚠️ **Warning**: This will replace all existing data)
+
+3. **Verify Photos**:
+   - Click "Verify Photos"
+   - Check the results
+   - If photos are missing, ensure your storage folder contains the original photo files
+
+### Backup File Structure
+
+```json
+{
+  "schemaVersion": 1,
+  "exportedAt": "2024-01-01T12:00:00.000Z",
+  "app": {
+    "name": "groom-crm",
+    "version": "1.0.0"
+  },
+  "data": {
+    "clients": [...],
+    "dogs": [...],
+    "visits": [...],
+    "eventLinks": [...],
+    "visitPhotos": [...],
+    "kv": {
+      "selectedCalendarId": "...",
+      "googleClientId": "..."
+    }
+  }
+}
+```
+
+### Important Notes
+
+- **Schema Version**: Backups are versioned. If the backup version doesn't match the app version, import will fail with an error.
+- **Photo Files**: The backup includes photo metadata but NOT the actual photo files. To restore photos:
+  - Copy the entire `GroomingDB/visits/` folder structure from your old device
+  - Or use the manifest backup which includes file paths for verification
+- **Sensitive Data**: The backup never includes:
+  - Google access tokens
+  - Storage folder handles (browser-specific)
+  - Session information
+- **Import Safety**: Import requires explicit confirmation and shows a warning that all existing data will be replaced.
 
 ## Technology Stack
 
