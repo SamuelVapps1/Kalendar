@@ -603,6 +603,19 @@ export default function SettingsPage() {
           </span>
         </div>
 
+        {!googleConnected && (
+          <div style={{ 
+            marginBottom: '1rem', 
+            padding: '0.75rem', 
+            backgroundColor: '#fff3cd', 
+            border: '1px solid #ffc107',
+            borderRadius: '4px',
+            fontSize: '0.9rem'
+          }}>
+            <strong>Note:</strong> If the app's OAuth scopes have been updated, you may need to disconnect and reconnect to grant the new permissions. Click "Disconnect" (if connected) then "Connect Google" again.
+          </div>
+        )}
+
         {googleError && (
           <div style={{ 
             marginBottom: '1rem', 

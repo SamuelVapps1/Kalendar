@@ -4,7 +4,7 @@ import { loadGIS } from './gis';
 const CLIENT_ID_KEY = 'googleClientId';
 const TOKEN_SESSION_KEY = 'googleAccessToken';
 const SCOPE_KEY = 'googleOAuthScope';
-const REQUIRED_SCOPE = 'https://www.googleapis.com/auth/calendar.events';
+const REQUIRED_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events';
 
 // In-memory token storage
 let currentToken: string | null = null;
@@ -67,11 +67,13 @@ function setAccessToken(token: string, scope: string): void {
 }
 
 /**
- * Clear access token
+ * Clear access token and stored scope
  */
 export function clearAccessToken(): void {
   currentToken = null;
   sessionStorage.removeItem(TOKEN_SESSION_KEY);
+  // Note: We don't clear the SCOPE_KEY here because we want to validate against it
+  // The scope key will be overwritten on next successful connection
 }
 
 /**
