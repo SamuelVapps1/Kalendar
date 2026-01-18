@@ -117,3 +117,41 @@ export async function isStoragePersisted(): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * Validate a stored folder handle
+ * Checks if the handle is still valid and has required permissions
+ */
+export async function validateStoredFolderHandle(
+  handle: FileSystemDirectoryHandle
+): Promise<{ ok: boolean; reason?: string; permission?: PermissionState }> {
+  // Check if File System Access API is supported
+  if (!('showDirectoryPicker' in window)) {
+    return { ok: false, reason: 'unsupported' };
+  }
+
+  // Check permission status
+  let permission: PermissionState;
+  try {
+    permission = await getFolderPermission(handle);
+  } catch (error) {
+    return { ok: false, reason: 'permission_query_failed', permission: 'denied' };
+  }
+
+  if (permission === 'denied') {
+    return { ok: false, reason: 'permission_denied', permission };
+  }
+
+  // Try a lightweight operation to verify handle is still valid
+  try {
+    // Use values() iterator - lightweight operation
+    // This will throw if handle is invalid
+    for await (const _ of (handle as any).values()) {
+      break; // Just need to verify we can iterate, then break immediately
+    }
+  } catch (error) {
+    return { ok: false, reason: 'handle_invalid', permission };
+  }
+
+  return { ok: true, permission };
+}

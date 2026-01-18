@@ -205,14 +205,28 @@ Photos are stored in the folder structure you selected in Settings:
 - Ensure the app has persistent storage permissions
 - Photos are stored in your ChromeOS Downloads or selected folder location
 
+### If Folder Permission is Revoked
+
+If you revoke site permissions or clear site data, the stored folder handle may become invalid:
+
+1. The app will automatically detect the invalid handle
+2. **Settings** page will show a warning: "Folder handle is invalid"
+3. Click **"Re-select Folder"** button
+4. Choose the same folder you used before
+5. Grant permission again
+6. Your photos will be accessible again
+
+**Note**: The photos themselves are not lost - they remain in your selected folder. You just need to re-select the folder so the app can access them again.
+
 ### Visit Features
 
-- **Autosave**: Visit details automatically save 1 second after you stop typing
+- **Autosave**: Visit details automatically save 1 second after you stop typing (writes are queued to prevent conflicts)
 - **Status**: Track visit status (Planned, Done, No Show)
 - **Duration**: Record visit duration in minutes
 - **Price**: Record visit price in EUR (stored as cents)
 - **Notes**: Add detailed notes about the visit
 - **Photos**: Upload multiple photos per visit
+- **Delete Photos**: Click the ✕ button on any photo thumbnail to delete it (removes from both database and filesystem)
 - **Thumbnails**: View photos with persistent thumbnails that work after page reload
 
 ## Backup & Restore

@@ -20,10 +20,15 @@ export class GroomingDB extends Dexie {
       kv: 'key',
     });
 
-    this.version(2).stores({
-      visits: 'id, dogId, [calendarId+calendarEventId], dateISO, createdAt',
-      visitPhotos: 'id, visitId, createdAt',
-    });
+    this.version(2)
+      .stores({
+        visits: 'id, dogId, [calendarId+calendarEventId], dateISO, createdAt',
+        visitPhotos: 'id, visitId, createdAt',
+      })
+      .upgrade(async () => {
+        // No-op upgrade for now
+        // Future schema changes can be handled here
+      });
   }
 }
 

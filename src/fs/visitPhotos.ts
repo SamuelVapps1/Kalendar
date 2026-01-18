@@ -1,7 +1,8 @@
-import { getStoredFolder, getFolderPermission, requestFolderPermission } from './storageFolder';
+import { getStoredFolder, requestFolderPermission, validateStoredFolderHandle } from './storageFolder';
 
 /**
  * Get the storage folder handle or throw if not available
+ * Validates the handle before returning it
  */
 export async function getStorageFolderHandleOrThrow(): Promise<FileSystemDirectoryHandle> {
   const handle = await getStoredFolder();
@@ -9,15 +10,24 @@ export async function getStorageFolderHandleOrThrow(): Promise<FileSystemDirecto
     throw new Error('No storage folder selected. Please select a folder in Settings.');
   }
 
-  // Check permission
-  const permission = await getFolderPermission(handle);
-  if (permission !== 'granted') {
-    if (permission === 'prompt') {
-      const newPermission = await requestFolderPermission(handle);
-      if (newPermission !== 'granted') {
-        throw new Error('Storage folder permission denied. Please grant permission in Settings.');
-      }
+  // Validate handle
+  const validation = await validateStoredFolderHandle(handle);
+  if (!validation.ok) {
+    if (validation.reason === 'permission_denied') {
+      throw new Error('Storage folder permission denied. Please grant permission in Settings.');
+    } else if (validation.reason === 'handle_invalid') {
+      throw new Error('Storage folder handle is invalid. Please re-select the folder in Settings.');
+    } else if (validation.reason === 'unsupported') {
+      throw new Error('File System Access API is not supported in this browser.');
     } else {
+      throw new Error('Storage folder is invalid. Please re-select the folder in Settings.');
+    }
+  }
+
+  // If permission is prompt, try to request it
+  if (validation.permission === 'prompt') {
+    const newPermission = await requestFolderPermission(handle);
+    if (newPermission !== 'granted') {
       throw new Error('Storage folder permission denied. Please grant permission in Settings.');
     }
   }
@@ -121,5 +131,33 @@ export async function readPhotoAsBlobUrl(
     return URL.createObjectURL(file);
   } catch (error: any) {
     throw new Error(`Failed to read photo: ${error.message}`);
+  }
+}
+
+/**
+ * Delete a photo file from the filesystem
+ */
+export async function deletePhotoFile(
+  visitId: string,
+  relativePath: string
+): Promise<void> {
+  const storageHandle = await getStorageFolderHandleOrThrow();
+  const visitFolder = await getVisitFolderHandle(storageHandle, visitId, false);
+
+  // Extract filename from relativePath
+  const filename = relativePath.split('/').pop();
+  if (!filename) {
+    throw new Error('Invalid relative path');
+  }
+
+  try {
+    // Chrome supports removeEntry on directory handles
+    await (visitFolder as any).removeEntry(filename, { recursive: false });
+  } catch (error: any) {
+    // If file doesn't exist, that's fine (idempotent)
+    if (error.name === 'NotFoundError') {
+      return;
+    }
+    throw new Error(`Failed to delete photo file: ${error.message}`);
   }
 }

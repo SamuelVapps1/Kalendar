@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Visit, Dog } from '../db/schema';
-import { updateVisit } from '../db/visits';
-import { listVisitPhotos, addVisitPhoto } from '../db/photos';
-import { saveFilesToVisit, readPhotoAsBlobUrl, getStorageFolderHandleOrThrow } from '../fs/visitPhotos';
+import { updateVisitQueued } from '../db/visits';
+import { listVisitPhotos, addVisitPhoto, deleteVisitPhoto } from '../db/photos';
+import { saveFilesToVisit, readPhotoAsBlobUrl, getStorageFolderHandleOrThrow, deletePhotoFile } from '../fs/visitPhotos';
 import { getStoredFolder, requestFolderPermission } from '../fs/storageFolder';
 import { VisitPhoto } from '../db/schema';
 
@@ -51,6 +51,10 @@ export default function VisitEditor({ visit, dog }: VisitEditorProps) {
 
   const loadPhotoBlobUrls = async (photoList: VisitPhoto[]) => {
     setLoadingPhotos(true);
+    
+    // Revoke old blob URLs before replacing
+    photoBlobUrls.forEach(url => URL.revokeObjectURL(url));
+    
     const urls = new Map<string, string>();
 
     // Check if folder is available
@@ -104,7 +108,7 @@ export default function VisitEditor({ visit, dog }: VisitEditorProps) {
     saveTimeoutRef.current = setTimeout(async () => {
       setSaving(true);
       try {
-        await updateVisit(visit.id, {
+        await updateVisitQueued(visit.id, {
           status,
           durationMin: duration ?? null,
           priceCents: price ? Math.round(price * 100) : null,
@@ -167,6 +171,43 @@ export default function VisitEditor({ visit, dog }: VisitEditorProps) {
       await checkStorageFolder();
     } catch (error: any) {
       alert(`Failed to request permission: ${error.message}`);
+    }
+  };
+
+  const handleDeletePhoto = async (photo: VisitPhoto) => {
+    if (!confirm(`Delete photo "${photo.name}"?`)) {
+      return;
+    }
+
+    // Revoke blob URL immediately
+    const blobUrl = photoBlobUrls.get(photo.id);
+    if (blobUrl) {
+      URL.revokeObjectURL(blobUrl);
+      const newUrls = new Map(photoBlobUrls);
+      newUrls.delete(photo.id);
+      setPhotoBlobUrls(newUrls);
+    }
+
+    try {
+      // Remove from DB first
+      await deleteVisitPhoto(photo.id);
+
+      // Remove from filesystem (best-effort, non-blocking)
+      try {
+        await deletePhotoFile(photo.visitId, photo.relativePath);
+      } catch (error: any) {
+        // Non-blocking warning
+        console.warn(`Failed to delete photo file: ${error.message}`);
+        // Show a subtle warning but don't block
+        alert(`Photo deleted from database, but file deletion failed: ${error.message}`);
+      }
+
+      // Reload photos list
+      await loadPhotos();
+    } catch (error: any) {
+      alert(`Failed to delete photo: ${error.message}`);
+      // Reload photos to restore state
+      await loadPhotos();
     }
   };
 
@@ -371,6 +412,25 @@ export default function VisitEditor({ visit, dog }: VisitEditorProps) {
               const blobUrl = photoBlobUrls.get(photo.id);
               return (
                 <div key={photo.id} style={{ position: 'relative' }}>
+                  <button
+                    onClick={() => handleDeletePhoto(photo)}
+                    style={{
+                      position: 'absolute',
+                      top: '4px',
+                      right: '4px',
+                      backgroundColor: 'rgba(244, 67, 54, 0.9)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      padding: '0.25rem 0.5rem',
+                      fontSize: '0.75rem',
+                      cursor: 'pointer',
+                      zIndex: 10,
+                    }}
+                    title="Delete photo"
+                  >
+                    ✕
+                  </button>
                   {blobUrl ? (
                     <img
                       src={blobUrl}

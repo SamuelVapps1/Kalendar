@@ -1,6 +1,41 @@
 import { db } from './db';
 import { Visit } from './schema';
 
+// Serialized write queue per visitId
+const writeQueue = new Map<string, Promise<void>>();
+
+/**
+ * Update a visit with queued writes to prevent overlapping saves
+ * Ensures writes are serialized per visitId
+ */
+export async function updateVisitQueued(
+  visitId: string,
+  patch: Partial<Pick<Visit, 'status' | 'notes' | 'priceCents' | 'durationMin'>>
+): Promise<void> {
+  // Get existing promise or start with resolved promise
+  const previousWrite = writeQueue.get(visitId) || Promise.resolve();
+
+  // Chain new write after previous one completes
+  const newWrite = previousWrite
+    .then(async () => {
+      await updateVisit(visitId, patch);
+    })
+    .catch((error) => {
+      // Log error but don't break the chain
+      console.error(`Failed to update visit ${visitId}:`, error);
+      throw error; // Re-throw so caller can handle it
+    })
+    .finally(() => {
+      // Clean up queue entry if this is the last write
+      if (writeQueue.get(visitId) === newWrite) {
+        writeQueue.delete(visitId);
+      }
+    });
+
+  writeQueue.set(visitId, newWrite);
+  return newWrite;
+}
+
 /**
  * Get or create a visit for a calendar event
  */

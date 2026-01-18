@@ -8,6 +8,7 @@ import {
   isFileSystemAccessSupported,
   persistStorage,
   isStoragePersisted,
+  validateStoredFolderHandle,
 } from '../fs/storageFolder';
 import {
   getClientId,
@@ -41,6 +42,14 @@ export default function SettingsPage() {
   const [googleError, setGoogleError] = useState<string | null>(null);
   const clientIdInputRef = useRef<HTMLInputElement>(null);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // Folder validation state
+  const [folderValidation, setFolderValidation] = useState<{
+    ok: boolean;
+    reason?: string;
+    permission?: PermissionState;
+  } | null>(null);
+  const [validatingFolder, setValidatingFolder] = useState(false);
 
   // Backup state
   const [backupLoading, setBackupLoading] = useState(false);
@@ -69,6 +78,13 @@ export default function SettingsPage() {
     // Load Google Calendar settings
     loadGoogleSettings();
   }, []);
+
+  // Re-validate folder when handle changes
+  useEffect(() => {
+    if (folderHandle) {
+      validateFolder();
+    }
+  }, [folderHandle]);
 
   const loadGoogleSettings = async () => {
     const storedClientId = await getClientId();
@@ -103,8 +119,34 @@ export default function SettingsPage() {
     if (handle) {
       const status = await getFolderPermission(handle);
       setPermissionStatus(status);
+      
+      // Validate folder handle
+      await validateFolder();
     } else {
       setPermissionStatus('prompt');
+      setFolderValidation(null);
+    }
+  };
+
+  const validateFolder = async () => {
+    if (!folderHandle) {
+      setFolderValidation(null);
+      return;
+    }
+
+    setValidatingFolder(true);
+    try {
+      const validation = await validateStoredFolderHandle(folderHandle);
+      setFolderValidation(validation);
+      
+      // Update permission status from validation
+      if (validation.permission) {
+        setPermissionStatus(validation.permission);
+      }
+    } catch (error) {
+      setFolderValidation({ ok: false, reason: 'validation_failed' });
+    } finally {
+      setValidatingFolder(false);
     }
   };
 
@@ -121,6 +163,10 @@ export default function SettingsPage() {
         setFolderHandle(handle);
         const status = await getFolderPermission(handle);
         setPermissionStatus(status);
+        
+        // Validate the new folder
+        const validation = await validateStoredFolderHandle(handle);
+        setFolderValidation(validation);
       }
     } catch (error: any) {
       alert(`Error selecting folder: ${error.message}`);
@@ -390,15 +436,77 @@ export default function SettingsPage() {
         )}
 
         {folderHandle && (
-          <div style={{ marginBottom: '1rem' }}>
-            <strong>Permission status:</strong>{' '}
-            <span style={{ 
-              color: getPermissionStatusColor(permissionStatus),
-              fontWeight: 'bold'
-            }}>
-              {permissionStatus}
-            </span>
-          </div>
+          <>
+            <div style={{ marginBottom: '1rem' }}>
+              <strong>Permission status:</strong>{' '}
+              <span style={{ 
+                color: getPermissionStatusColor(permissionStatus),
+                fontWeight: 'bold'
+              }}>
+                {permissionStatus}
+              </span>
+            </div>
+            
+            {validatingFolder && (
+              <div style={{ marginBottom: '1rem', fontSize: '0.9rem', color: '#666' }}>
+                Validating folder...
+              </div>
+            )}
+            
+            {!validatingFolder && folderValidation && (
+              <div style={{ marginBottom: '1rem' }}>
+                <strong>Validation status:</strong>{' '}
+                <span style={{ 
+                  color: folderValidation.ok ? '#4caf50' : '#f44336',
+                  fontWeight: 'bold'
+                }}>
+                  {folderValidation.ok ? 'Valid' : 'Invalid'}
+                </span>
+                {folderValidation.reason && (
+                  <div style={{ 
+                    marginTop: '0.25rem', 
+                    fontSize: '0.85rem', 
+                    color: folderValidation.ok ? '#666' : '#c62828' 
+                  }}>
+                    {folderValidation.reason === 'permission_denied' && 'Permission denied'}
+                    {folderValidation.reason === 'handle_invalid' && 'Folder handle is invalid'}
+                    {folderValidation.reason === 'unsupported' && 'File System Access API not supported'}
+                    {folderValidation.reason === 'permission_query_failed' && 'Failed to query permission'}
+                    {folderValidation.reason === 'validation_failed' && 'Validation check failed'}
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {!validatingFolder && folderValidation && !folderValidation.ok && (
+              <div style={{ 
+                marginBottom: '1rem',
+                padding: '0.75rem',
+                backgroundColor: '#fff3cd',
+                border: '1px solid #ffc107',
+                borderRadius: '4px',
+                fontSize: '0.9rem'
+              }}>
+                <div style={{ marginBottom: '0.5rem', fontWeight: 'bold' }}>
+                  Folder handle is invalid. Please re-select the folder.
+                </div>
+                <button
+                  onClick={handleSelectFolder}
+                  disabled={loading}
+                  style={{ 
+                    padding: '0.5rem 1rem',
+                    backgroundColor: '#ff9800',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Re-select Folder
+                </button>
+              </div>
+            )}
+          </>
         )}
 
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
